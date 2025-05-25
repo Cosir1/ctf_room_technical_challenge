@@ -10,6 +10,7 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $username = $_POST['username'];
     $email = $_POST['email'];
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
@@ -17,13 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($password !== $confirm_password) {
         $error = "Passwords do not match.";
-    } elseif (strlen($password) < 6) {
-        $error = "Password must be at least 6 characters long.";
     } else {
-        if (register($email, $password, $display_name)) {
+        if (register($username, $email, $password, $display_name)) {
             $success = "Registration successful! You can now login.";
         } else {
-            $error = "Email already exists.";
+            $error = "Username or email already exists.";
         }
     }
 }
@@ -47,18 +46,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="text-center mb-4">
                             <i class="bi bi-trophy-fill text-primary" style="font-size: 3rem;"></i>
                             <h1 class="h3 mt-3">Create Account</h1>
-                            <p class="text-muted">Join the CTF Room Challenge</p>
+                            <p class="text-muted">Join our CTF challenges</p>
                         </div>
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i><?php echo $error; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
                         <?php endif; ?>
 
                         <?php if ($success): ?>
-                            <div class="alert alert-success"><?php echo $success; ?></div>
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i><?php echo $success; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
                         <?php endif; ?>
 
                         <form method="POST" class="needs-validation" novalidate>
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" name="username" required>
+                                <div class="invalid-feedback">Please enter a username.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                                <div class="invalid-feedback">Please enter a valid email.</div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="display_name" class="form-label">Display Name</label>
                                 <input type="text" class="form-control" id="display_name" name="display_name" required>
@@ -66,15 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="mb-3">
-                                <label for="email" class="form-label">Email address</label>
-                                <input type="email" class="form-control" id="email" name="email" required>
-                                <div class="invalid-feedback">Please enter a valid email address.</div>
-                            </div>
-
-                            <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" name="password" required minlength="6">
-                                <div class="invalid-feedback">Password must be at least 6 characters long.</div>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                                <div class="invalid-feedback">Please enter a password.</div>
                             </div>
 
                             <div class="mb-4">
@@ -84,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <button type="submit" class="btn btn-primary w-100 mb-3">
-                                <i class="bi bi-person-plus me-2"></i>Create Account
+                                <i class="bi bi-person-plus-fill me-2"></i>Create Account
                             </button>
 
                             <div class="text-center">
@@ -99,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    // Form validation
     (function () {
         'use strict'
         var forms = document.querySelectorAll('.needs-validation')

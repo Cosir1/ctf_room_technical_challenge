@@ -1,11 +1,39 @@
 <?php
 session_start();
 require_once 'config/database.php';
+require_once 'auth.php';
 
-// Handle form submissions
+require_admin();
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
+            case 'edit_score':
+                $score_id = $_POST['score_id'];
+                $points = $_POST['points'];
+                $comments = $_POST['comments'];
+                
+                $stmt = $mysqli->prepare("UPDATE scores SET points = ?, comments = ? WHERE id = ?");
+                $stmt->bind_param("isi", $points, $comments, $score_id);
+                $stmt->execute();
+                $stmt->close();
+                
+                header("Location: admin.php?success=score_updated");
+                exit();
+                break;
+
+            case 'delete_score':
+                $score_id = $_POST['score_id'];
+                
+                $stmt = $mysqli->prepare("DELETE FROM scores WHERE id = ?");
+                $stmt->bind_param("i", $score_id);
+                $stmt->execute();
+                $stmt->close();
+                
+                header("Location: admin.php?success=score_deleted");
+                exit();
+                break;
+
             case 'create_event':
                 $name = $_POST['name'];
                 $description = $_POST['description'];
@@ -19,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $event_id = $stmt->insert_id;
                 $stmt->close();
                 
-                // Assign selected judges to the event
                 if (isset($_POST['judges']) && is_array($_POST['judges'])) {
                     $stmt = $mysqli->prepare("INSERT INTO event_judges (event_id, judge_id) VALUES (?, ?)");
                     foreach ($_POST['judges'] as $judge_id) {
@@ -36,13 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             case 'assign_judges':
                 $event_id = $_POST['event_id'];
                 
-                // First remove all existing judge assignments for this event
                 $stmt = $mysqli->prepare("DELETE FROM event_judges WHERE event_id = ?");
                 $stmt->bind_param("i", $event_id);
                 $stmt->execute();
                 $stmt->close();
                 
-                // Then add the new assignments
                 if (isset($_POST['judges']) && is_array($_POST['judges'])) {
                     $stmt = $mysqli->prepare("INSERT INTO event_judges (event_id, judge_id) VALUES (?, ?)");
                     foreach ($_POST['judges'] as $judge_id) {
@@ -60,39 +85,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $email = $_POST['email'];
                 $password = $_POST['password'];
                 $display_name = $_POST['display_name'];
+                $username = $_POST['username'];
                 $is_admin = isset($_POST['is_admin']) ? 1 : 0;
                 
-                // Check if email already exists
-                $stmt = $mysqli->prepare("SELECT 1 FROM judges WHERE email = ?");
-                $stmt->bind_param("s", $email);
+                $stmt = $mysqli->prepare("SELECT 1 FROM users WHERE email = ? OR username = ?");
+                $stmt->bind_param("ss", $email, $username);
                 $stmt->execute();
                 if ($stmt->get_result()->num_rows > 0) {
-                    header("Location: admin.php?error=email_exists");
+                    header("Location: admin.php?error=email_or_username_exists");
                     exit();
                 }
                 $stmt->close();
                 
-                // Hash password and insert new judge
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $mysqli->prepare("INSERT INTO judges (email, password, display_name, is_admin) VALUES (?, ?, ?, ?)");
-                $stmt->bind_param("sssi", $email, $hashed_password, $display_name, $is_admin);
-                $stmt->execute();
-                $stmt->close();
+                $mysqli->begin_transaction();
                 
-                header("Location: admin.php?success=judge_created");
-                exit();
+                try {
+                    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                    $stmt = $mysqli->prepare("INSERT INTO users (username, email, password, display_name) VALUES (?, ?, ?, ?)");
+                    $stmt->bind_param("ssss", $username, $email, $hashed_password, $display_name);
+                    $stmt->execute();
+                    $user_id = $stmt->insert_id;
+                    $stmt->close();
+                    
+                    $stmt = $mysqli->prepare("INSERT INTO judges (username, user_id, display_name) VALUES (?, ?, ?)");
+                    $stmt->bind_param("sis", $username, $user_id, $display_name);
+                    $stmt->execute();
+                    $stmt->close();
+                    
+                    $mysqli->commit();
+                    header("Location: admin.php?success=judge_created");
+                    exit();
+                } catch (Exception $e) {
+                    $mysqli->rollback();
+                    header("Location: admin.php?error=creation_failed");
+                    exit();
+                }
                 break;
         }
     }
 }
 
-// Fetch all events
 $events = $mysqli->query("SELECT * FROM events ORDER BY start_date DESC");
 
-// Fetch all judges
-$judges = $mysqli->query("SELECT * FROM judges ORDER BY display_name");
+$judges = $mysqli->query("
+    SELECT j.*, u.display_name, u.username 
+    FROM judges j 
+    JOIN users u ON j.user_id = u.id 
+    ORDER BY u.display_name
+");
 
-// Fetch all users
 $users = $mysqli->query("SELECT * FROM users ORDER BY display_name");
 ?>
 
@@ -146,6 +187,10 @@ $users = $mysqli->query("SELECT * FROM users ORDER BY display_name");
                     <i class="bi bi-check-circle-fill me-2"></i>Judges have been successfully assigned!
                 <?php elseif ($_GET['success'] == 'judge_created'): ?>
                     <i class="bi bi-check-circle-fill me-2"></i>Judge account has been successfully created!
+                <?php elseif ($_GET['success'] == 'score_updated'): ?>
+                    <i class="bi bi-check-circle-fill me-2"></i>Score has been successfully updated!
+                <?php elseif ($_GET['success'] == 'score_deleted'): ?>
+                    <i class="bi bi-check-circle-fill me-2"></i>Score has been successfully deleted!
                 <?php endif; ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
@@ -167,6 +212,12 @@ $users = $mysqli->query("SELECT * FROM users ORDER BY display_name");
                         <form method="POST" class="needs-validation" novalidate>
                             <input type="hidden" name="action" value="create_judge">
                             
+                            <div class="mb-3">
+                                <label for="judge_username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="judge_username" name="username" required>
+                                <div class="invalid-feedback">Please enter a username.</div>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="judge_email" class="form-label">Email address</label>
                                 <input type="email" class="form-control" id="judge_email" name="email" required>
@@ -352,6 +403,130 @@ $users = $mysqli->query("SELECT * FROM users ORDER BY display_name");
                                     </div>
                                 </div>
                             <?php endwhile; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manage Scores Section -->
+            <div class="col-md-12 mt-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h4 mb-4">Manage Scores</h2>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th>Event</th>
+                                        <th>Participant</th>
+                                        <th>Judge</th>
+                                        <th>Points</th>
+                                        <th>Comments</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $scores_query = "
+                                        SELECT s.*, 
+                                               e.name as event_name, 
+                                               u.display_name as participant_name, 
+                                               ju.display_name as judge_name
+                                        FROM scores s
+                                        JOIN events e ON s.event_id = e.id
+                                        JOIN users u ON s.user_id = u.id
+                                        JOIN judges j ON s.judge_id = j.id
+                                        JOIN users ju ON j.user_id = ju.id
+                                        ORDER BY s.created_at DESC
+                                    ";
+                                    $scores = $mysqli->query($scores_query);
+                                    while ($score = $scores->fetch_assoc()):
+                                    ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($score['event_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($score['participant_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($score['judge_name']); ?></td>
+                                        <td><?php echo $score['points']; ?></td>
+                                        <td><?php echo htmlspecialchars($score['comments']); ?></td>
+                                        <td><?php echo date('M d, Y H:i', strtotime($score['created_at'])); ?></td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#editScoreModal<?php echo $score['id']; ?>">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteScoreModal<?php echo $score['id']; ?>">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Edit Score Modal -->
+                                    <div class="modal fade" id="editScoreModal<?php echo $score['id']; ?>" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Edit Score</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="POST">
+                                                    <div class="modal-body">
+                                                        <input type="hidden" name="action" value="edit_score">
+                                                        <input type="hidden" name="score_id" value="<?php echo $score['id']; ?>">
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Points</label>
+                                                            <input type="number" class="form-control" name="points" 
+                                                                   value="<?php echo $score['points']; ?>" required>
+                                                        </div>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Comments</label>
+                                                            <textarea class="form-control" name="comments" rows="3"><?php echo htmlspecialchars($score['comments']); ?></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Delete Score Modal -->
+                                    <div class="modal fade" id="deleteScoreModal<?php echo $score['id']; ?>" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Delete Score</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>Are you sure you want to delete this score?</p>
+                                                    <p class="mb-0">
+                                                        <strong>Event:</strong> <?php echo htmlspecialchars($score['event_name']); ?><br>
+                                                        <strong>Participant:</strong> <?php echo htmlspecialchars($score['participant_name']); ?><br>
+                                                        <strong>Points:</strong> <?php echo $score['points']; ?>
+                                                    </p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <form method="POST" class="d-inline">
+                                                        <input type="hidden" name="action" value="delete_score">
+                                                        <input type="hidden" name="score_id" value="<?php echo $score['id']; ?>">
+                                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

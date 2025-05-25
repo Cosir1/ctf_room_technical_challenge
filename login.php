@@ -7,18 +7,23 @@ if (is_logged_in()) {
 }
 
 $error = '';
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $email = $_POST['email'];
+    $username = $_POST['username'];
     $password = $_POST['password'];
     $role = $_POST['role'];
     
-    if (login($email, $password, $role)) {
+    if (login($username, $password, $role)) {
         header("Location: index.php");
         exit();
     } else {
-        $error = "Invalid email or password.";
+        $error = "Invalid username or password.";
     }
+}
+
+if (isset($_GET['message']) && $_GET['message'] === 'logged_out') {
+    $success = "You have been successfully logged out.";
 }
 ?>
 <!DOCTYPE html>
@@ -34,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body class="bg-light">
     <div class="container">
         <div class="row justify-content-center align-items-center min-vh-100">
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-4 col-lg-6">
                 <div class="card shadow-sm">
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
@@ -44,14 +49,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i><?php echo $error; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($success): ?>
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i><?php echo $success; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
                         <?php endif; ?>
 
                         <form method="POST" class="needs-validation" novalidate>
                             <div class="mb-3">
-                                <label for="email" class="form-label">Email address</label>
-                                <input type="email" class="form-control" id="email" name="email" required>
-                                <div class="invalid-feedback">Please enter a valid email address.</div>
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" name="username" required>
+                                <div class="invalid-feedback">Please enter your username.</div>
                             </div>
 
                             <div class="mb-3">
@@ -73,18 +88,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
                             </button>
 
-                            <div class="text-center">
-                                <p class="mb-0">Don't have an account? <a href="register.php">Sign up</a></p>
-                            </div>
+                          
                         </form>
 
                         <div class="mt-4">
                             <h6 class="text-muted mb-3">Demo Accounts:</h6>
                             <div class="card bg-light">
                                 <div class="card-body">
-                                    <p class="mb-1"><strong>Admin:</strong> admin@demo.com / admin123</p>
-                                    <p class="mb-1"><strong>Judge:</strong> judge@demo.com / judge123</p>
-                                    <p class="mb-0"><strong>Participant:</strong> user@demo.com / user123</p>
+                                    <p class="mb-1"><strong>Admin:</strong> admin / admin123</p>
+                                    <p class="mb-1"><strong>Judge:</strong> judge / judge123</p>
+                                    <p class="mb-0"><strong>Participant:</strong> participant / participant123</p>
                                 </div>
                             </div>
                         </div>
@@ -96,7 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    // Form validation
     (function () {
         'use strict'
         var forms = document.querySelectorAll('.needs-validation')

@@ -1,8 +1,11 @@
 <?php
 session_start();
 require_once 'config/database.php';
+require_once 'auth.php';
 
-// Fetch active events
+$role = get_user_role();
+$display_name = get_user_display_name();
+
 $stmt = $mysqli->prepare("SELECT * FROM events WHERE status = 'active' ORDER BY start_date DESC");
 $stmt->execute();
 $active_events = $stmt->get_result();
@@ -29,70 +32,72 @@ $active_events = $stmt->get_result();
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
+                    <?php if (is_judge()): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="judges.php">Judge Portal</a>
+                        </li>
+                    <?php endif; ?>
+                    
+                    <?php if (is_admin()): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="admin.php">Admin Panel</a>
+                        </li>
+                    <?php endif; ?>
+                    
                     <li class="nav-item">
-                        <a class="nav-link" href="scoreboard.php">
-                            <i class="bi bi-bar-chart-fill me-1"></i>Scoreboard
-                        </a>
+                        <a class="nav-link" href="scoreboard.php">Scoreboard</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="judges.php">
-                            <i class="bi bi-person-badge me-1"></i>Judge Portal
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="admin.php">
-                            <i class="bi bi-gear-fill me-1"></i>Admin Panel
-                        </a>
-                    </li>
+                    
+                    <?php if (is_logged_in()): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="logout.php">Logout</a>
+                        </li>
+                    <?php else: ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="login.php">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="register.php">Register</a>
+                        </li>
+                    <?php endif; ?>
                 </ul>
             </div>
         </div>
     </nav>
 
     <div class="container py-5">
-        <div class="row mb-4">
-            <div class="col-12">
-                <h1 class="display-4 text-center mb-4">Welcome to CTF Room Challenge</h1>
-                <p class="lead text-center text-muted">A platform for competitive technical challenges and scoring</p>
-            </div>
-        </div>
+        <div class="row">
+            <div class="col-md-8 mx-auto">
+                <div class="card shadow-sm">
+                    <div class="card-body p-5">
+                        <?php if (is_logged_in()): ?>
+                            <h1 class="h3 mb-4">Welcome, <?php echo htmlspecialchars($display_name); ?>!</h1>
+                        <?php else: ?>
+                            <h1 class="h3 mb-4">Welcome to CTF Room Challenge</h1>
+                        <?php endif; ?>
 
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm hover-shadow">
-                    <div class="card-body text-center">
-                        <i class="bi bi-bar-chart-fill display-4 text-primary mb-3"></i>
-                        <h3 class="card-title h4">Live Scoreboard</h3>
-                        <p class="card-text text-muted">Track real-time progress and rankings of all participants.</p>
-                        <a href="scoreboard.php" class="btn btn-primary">
-                            <i class="bi bi-arrow-right-circle me-1"></i>View Scoreboard
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm hover-shadow">
-                    <div class="card-body text-center">
-                        <i class="bi bi-person-badge display-4 text-success mb-3"></i>
-                        <h3 class="card-title h4">Judge Portal</h3>
-                        <p class="card-text text-muted">Access the judge portal to evaluate and score participants.</p>
-                        <a href="judges.php" class="btn btn-success">
-                            <i class="bi bi-arrow-right-circle me-1"></i>Enter Judge Portal
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm hover-shadow">
-                    <div class="card-body text-center">
-                        <i class="bi bi-gear-fill display-4 text-info mb-3"></i>
-                        <h3 class="card-title h4">Admin Panel</h3>
-                        <p class="card-text text-muted">Manage events, judges, and system settings.</p>
-                        <a href="admin.php" class="btn btn-info text-white">
-                            <i class="bi bi-arrow-right-circle me-1"></i>Access Admin Panel
-                        </a>
+                        <?php if (isset($_GET['error']) && $_GET['error'] === 'unauthorized'): ?>
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>You are not authorized to access that page.
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="text-center">
+                            <i class="bi bi-trophy-fill text-primary" style="font-size: 5rem;"></i>
+                            <p class="mt-3">Join our CTF challenges and test your skills!</p>
+                            
+                            <?php if (!is_logged_in()): ?>
+                                <div class="mt-4">
+                                    <a href="login.php" class="btn btn-primary me-2">
+                                        <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                                    </a>
+                                    <a href="register.php" class="btn btn-outline-primary">
+                                        <i class="bi bi-person-plus-fill me-2"></i>Register
+                                    </a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
